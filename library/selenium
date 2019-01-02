@@ -157,6 +157,20 @@ def is_running(module):
         return True
 
 
+def get_role(module):
+    """
+    Fetches role from parameters, formats as command line argument.
+    :param module: the module
+    :return:
+    """
+
+    role = module.params['role']
+    if role != 'standalone':
+      return "-role %s" % role
+    else:
+      return ''
+
+
 def get_pid(module):
     """
     Fetches the pid if it is running, for the role.
@@ -164,8 +178,10 @@ def get_pid(module):
     :return:
     """
 
-    pid_cmd = ['pgrep', '-f', '.*selenium-server-%s' %
-               (module.params['version'])]
+    role = get_role(module)
+
+    pid_cmd = ['pgrep', '-f', '.*selenium-server-standalone-%s.*%s' %
+               (module.params['version'], role)]
 
     try:
         return int(subprocess.check_output(pid_cmd).rstrip())
@@ -183,11 +199,7 @@ def start(module):
     _, jar_file = download(module)
 
     changed = False
-    role = module.params['role']
-    if role != 'standalone':
-      role = "-role %s" % role
-    else: 
-      role = ''
+    role = get_role(module)
 
     if not is_running(module):
         changed = True
@@ -195,7 +207,7 @@ def start(module):
         java_args = ''
         if module.params['args']:
             for (k, v) in module.params['args'].iteritems():
-                args += '-%s=%s ' % (k, v)
+                args += '-%s %s ' % (k, v)
 
         if module.params['javaargs']:
             for arg in module.params['javaargs']:
@@ -272,7 +284,7 @@ def download(module):
     (major, minor, patch) = full_version.split('.')
 
     url = JAR_URL % ((major + '.' + minor), full_version)
-    jar_file = '%s/selenium-server-%s.jar' % (os.path.abspath(os.path.expanduser(module.params['path'])),
+    jar_file = '%s/selenium-server-standalone-%s.jar' % (os.path.abspath(os.path.expanduser(module.params['path'])),
                                               full_version)
 
     if not os.path.exists(jar_file) or module.params['force']:  # download if not already downloaded
@@ -320,7 +332,7 @@ def main():
             version=dict(default='3.13.0'),
             path=dict(default='.'),
             force=dict(default=False, type='bool'),
-            args=dict(required=False, default='', type='dict'),
+            args=dict(required=False, default={}, type='dict'),
             java=dict(required=False, default='/usr/bin/java'),
             logfile=dict(required=False, default='./selenium.log'),
             javaargs=dict(required=False, default=[], type='list'),
